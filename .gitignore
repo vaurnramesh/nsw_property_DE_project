@@ -46,4 +46,6 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-2_airflow/local_2024/data_test/*
+2_airflow/local_2024/data_test
+2_airflow/data/*
+2_airflow/logs/*

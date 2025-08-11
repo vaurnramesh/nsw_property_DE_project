@@ -55,6 +55,7 @@ services:
 
         volumes:
         - shared-data:/opt/airflow/shared
+        - ./data:/opt/airflow/data
       
     scheduler:
         build: .
@@ -97,6 +98,7 @@ services:
             - ./dags:/opt/airflow/dags
             - ./logs:/opt/airflow/logs
             - shared-data:/opt/airflow/shared
+            - ./data:/opt/airflow/data
 
     webserver:
         build: .
@@ -139,7 +141,8 @@ services:
         volumes:
             - ./dags:/opt/airflow/dags
             - ./logs:/opt/airflow/logs
-            - shared-data:/opt/airflow/shared            
+            - shared-data:/opt/airflow/shared
+            - ./data:/opt/airflow/data
 
         user: "50000:0"
         ports:
