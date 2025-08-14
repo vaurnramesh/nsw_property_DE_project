@@ -1,5 +1,8 @@
 from airflow import DAG
 from airflow.decorators import task
+from airflow.utils.task_group import TaskGroup
+import pandas as pd
+
 from datetime import datetime
 import os
 import requests
@@ -9,7 +12,7 @@ import shutil
 DOWNLOAD_DIR = "/opt/airflow/data/"
 BASE_URL = "https://www.valuergeneral.nsw.gov.au/__psi/yearly/{year}.zip"
 
-START_YEAR = 2024
+START_YEAR = 2001
 END_YEAR = 2024
 
 def extract_inner_zips(zip_path: str, extract_to_dir: str) -> None:
@@ -38,6 +41,43 @@ def collect_dat_files(src_dir: str, dest_dir: str) -> int:
                 shutil.copy2(src_file, dest_file)
                 count += 1
     return count
+
+
+def parse_valnet_dat(file_path):
+    sales = []
+    with open(file_path, "r", encoding="utf-8") as f:
+        for line in f:
+            parts = line.strip().split(";")
+            if parts[0] != "B":
+                continue
+
+            property_description = parts[18].strip().upper()
+            # Only keep Residence or Vacant Land
+            if property_description not in {"RESIDENCE", "VACANT LAND"}:
+                continue
+
+            sale = {
+                "lga_code": parts[1],
+                "property_id": pd.to_numeric(parts[2], errors="coerce"),
+                "processed_datetime": pd.to_datetime(parts[4], format="%Y%m%d %H:%M", errors="coerce"),
+                "building_name": parts[5] or None,
+                "section_no": parts[6],
+                "street_no": parts[7],
+                "street_name": parts[8],
+                "locality": parts[9],
+                "postcode": parts[10],
+                "land_area_sqm": pd.to_numeric(parts[11], errors="coerce"),
+                "area_type": parts[12],
+                "contract_date": pd.to_datetime(parts[13], format="%Y%m%d", errors="coerce"),
+                "settlement_date": pd.to_datetime(parts[14], format="%Y%m%d", errors="coerce"),
+                "sale_price": pd.to_numeric(parts[15], errors="coerce"),
+                "zoning": parts[16],
+                "property_category": parts[17],
+                "property_description": property_description,
+            }
+            sales.append(sale)
+
+    return pd.DataFrame(sales)    
 
 
 # -----------------
@@ -74,20 +114,56 @@ def collect_yearly_dat_files(extract_dir: str, year: int) -> str:
 
 
 @task # 4
+def process_dat_files(dat_dir: str, year: int) -> str:
+    all_sales = []
+    dat_files = [f for f in os.listdir(dat_dir) if f.lower().endswith(".dat")]
+
+    for i, filename in enumerate(dat_files, 1):
+        file_path = os.path.join(dat_dir, filename)
+        try:
+            df = parse_valnet_dat(file_path)
+            if df.empty:
+                print(f"Warning: No valid data found in {filename}")
+            else:
+                all_sales.append(df)
+        except Exception as e:
+            print(f"Error processing {filename}: {e}")
+
+        print(f"Processing DAT files: {i}/{len(dat_files)}", end="\r")
+
+    if all_sales:
+        final_df = pd.concat(all_sales, ignore_index=True)
+        csv_path = os.path.join(DOWNLOAD_DIR, f"all_sales_{year}.csv")
+        final_df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+        print(f"\n  -> Saved {len(final_df)} records to {csv_path}")
+        return csv_path
+    else:
+        print("\nNo dat files found or all files failed to parse.")
+        return "" 
+
+@task # 5
 def cleanup_year_files(year: int):
 
     zip_path = os.path.join(DOWNLOAD_DIR, f"{year}.zip")
     extract_dir = os.path.join(DOWNLOAD_DIR, str(year))
+    dat_dir = os.path.join(DOWNLOAD_DIR, f"{year}_DATS")
+    csv_path = os.path.join(DOWNLOAD_DIR, f"all_sales_{year}.csv")
 
     if os.path.exists(zip_path):
         os.remove(zip_path)
         print(f"Deleted {zip_path}")
+
     if os.path.exists(extract_dir):
         shutil.rmtree(extract_dir)
         print(f"Deleted {extract_dir}")
 
-    return f"Cleaned up files for {year}"
+    if os.path.exists(dat_dir) and os.path.exists(csv_path):
+        shutil.rmtree(dat_dir)
+        print(f"Deleted {dat_dir}")
+    else:
+        print(f"Skipped deleting {dat_dir} — CSV file not found at {csv_path}")
 
+    return f"Cleaned up files for {year}"
 
 
 # -----------------
@@ -95,15 +171,18 @@ def cleanup_year_files(year: int):
 # -----------------
 with DAG(
     dag_id="Annual_data",
-    start_date=datetime(2024, 1, 1),
+    start_date=datetime(2001, 1, 1),
     schedule_interval=None, # Trigger manually
-    catchup=False
+    catchup=False,
+    max_active_tasks=8
 ) as dag:
     
-    for year in range(START_YEAR, END_YEAR + 1):
-        zip_path=download_yearly_zip(year)
-        extracted_dir=extract_year_zip(zip_path, year)
-        dat_dir = collect_yearly_dat_files(extracted_dir, year)
-        cleanup = cleanup_year_files(year)
+    for year in range(2001, 2025):
+        with TaskGroup(group_id=f"year_{year}") as tg:
+            zip_task = download_yearly_zip.override(task_id=f"download_{year}")(year)
+            extract_task = extract_year_zip.override(task_id=f"extract_{year}")(zip_task, year)
+            dat_task = collect_yearly_dat_files.override(task_id=f"collect_{year}")(extract_task, year)
+            process_task = process_dat_files.override(task_id=f"process_{year}")(dat_task, year)
+            cleanup_task = cleanup_year_files.override(task_id=f"cleanup_{year}")(year)
 
-        zip_path >> extracted_dir >> dat_dir >> cleanup
+        zip_task >> extract_task >> dat_task >> process_task >> cleanup_task
