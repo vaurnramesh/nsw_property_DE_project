@@ -1,6 +1,8 @@
 from airflow import DAG
 from airflow.decorators import task
 from airflow.utils.task_group import TaskGroup
+from airflow.providers.google.cloud.hooks.gcs import GCSHook
+from airflow.operators.bash import BashOperator
 import pandas as pd
 
 from datetime import datetime
@@ -11,8 +13,10 @@ import shutil
 
 DOWNLOAD_DIR = "/opt/airflow/data/"
 BASE_URL = "https://www.valuergeneral.nsw.gov.au/__psi/yearly/{year}.zip"
+BUCKET = os.environ.get("GCP_GCS_BUCKET")
+GCP_CONN_ID = os.environ.get("AIRFLOW_CONN_GOOGLE_CLOUD_DEFAULT")
 
-START_YEAR = 2001
+START_YEAR = 2024
 END_YEAR = 2024
 
 def extract_inner_zips(zip_path: str, extract_to_dir: str) -> None:
@@ -55,29 +59,45 @@ def parse_valnet_dat(file_path):
             # Only keep Residence or Vacant Land
             if property_description not in {"RESIDENCE", "VACANT LAND"}:
                 continue
+            
+            
+            raw_postcode = parts[10].strip()
+            postcode = raw_postcode if raw_postcode.isdigit() else None
 
             sale = {
-                "lga_code": parts[1],
-                "property_id": pd.to_numeric(parts[2], errors="coerce"),
+                "lga_code": parts[1].strip() or None,
+                "property_id": parts[2].strip(), # store as string
                 "processed_datetime": pd.to_datetime(parts[4], format="%Y%m%d %H:%M", errors="coerce"),
-                "building_name": parts[5] or None,
-                "section_no": parts[6],
-                "street_no": parts[7],
-                "street_name": parts[8],
-                "locality": parts[9],
-                "postcode": parts[10],
+                "building_name": parts[5].strip() or None,
+                "section_no": parts[6].strip() or None,
+                "street_no": parts[7].strip() or None,
+                "street_name": parts[8].strip() or None,
+                "locality": parts[9].strip() or None,
+                "postcode": postcode,
                 "land_area_sqm": pd.to_numeric(parts[11], errors="coerce"),
-                "area_type": parts[12],
+                "area_type": parts[12].strip() or None,
                 "contract_date": pd.to_datetime(parts[13], format="%Y%m%d", errors="coerce"),
                 "settlement_date": pd.to_datetime(parts[14], format="%Y%m%d", errors="coerce"),
                 "sale_price": pd.to_numeric(parts[15], errors="coerce"),
-                "zoning": parts[16],
-                "property_category": parts[17],
+                "zoning": parts[16].strip() or None,
+                "property_category": parts[17].strip() or None,
                 "property_description": property_description,
             }
             sales.append(sale)
 
-    return pd.DataFrame(sales)    
+    df = pd.DataFrame(sales)
+
+    # Now apply nullable integer conversion after DataFrame creation
+    int_cols = ["land_area_sqm", "sale_price"]
+    for col in int_cols:
+        df[col] = pd.to_numeric(df[col], errors="coerce").round().astype("Int64")         
+
+    return df
+
+
+def upload_to_gcs(bucket_name: str, object_name: str, local_file: str, gcp_conn_id: str):
+    hook = GCSHook(gcp_conn_id=gcp_conn_id)
+    hook.upload(bucket_name=bucket_name, object_name=object_name, filename=local_file)
 
 
 # -----------------
@@ -133,37 +153,22 @@ def process_dat_files(dat_dir: str, year: int) -> str:
 
     if all_sales:
         final_df = pd.concat(all_sales, ignore_index=True)
-        csv_path = os.path.join(DOWNLOAD_DIR, f"all_sales_{year}.csv")
-        final_df.to_csv(csv_path, index=False, encoding="utf-8-sig")
-        print(f"\n  -> Saved {len(final_df)} records to {csv_path}")
-        return csv_path
+        parquet_path = os.path.join(DOWNLOAD_DIR, f"all_sales_{year}.parquet")
+        final_df.to_parquet(parquet_path, index=False, engine="pyarrow")
+        print(f"\n  -> Saved {len(final_df)} records to {parquet_path}")
+        return parquet_path
     else:
         print("\nNo dat files found or all files failed to parse.")
         return "" 
 
 @task # 5
-def cleanup_year_files(year: int):
-
-    zip_path = os.path.join(DOWNLOAD_DIR, f"{year}.zip")
-    extract_dir = os.path.join(DOWNLOAD_DIR, str(year))
-    dat_dir = os.path.join(DOWNLOAD_DIR, f"{year}_DATS")
-    csv_path = os.path.join(DOWNLOAD_DIR, f"all_sales_{year}.csv")
-
-    if os.path.exists(zip_path):
-        os.remove(zip_path)
-        print(f"Deleted {zip_path}")
-
-    if os.path.exists(extract_dir):
-        shutil.rmtree(extract_dir)
-        print(f"Deleted {extract_dir}")
-
-    if os.path.exists(dat_dir) and os.path.exists(csv_path):
-        shutil.rmtree(dat_dir)
-        print(f"Deleted {dat_dir}")
+def upload_year_to_gcs(parquet_path: str, year: int, bucket: str, gcp_conn_id: str):
+    if parquet_path and os.path.exists(parquet_path):
+        object_name = f"raw/yearly/all_sales_{year}.parquet"
+        upload_to_gcs(bucket_name=bucket, object_name=object_name, local_file=parquet_path, gcp_conn_id=gcp_conn_id)
+        print(f"Uploaded {parquet_path} to gs://{bucket}/{object_name}")
     else:
-        print(f"Skipped deleting {dat_dir} — CSV file not found at {csv_path}")
-
-    return f"Cleaned up files for {year}"
+        print(f"Skipping upload for {year} — file not found")
 
 
 # -----------------
@@ -171,18 +176,29 @@ def cleanup_year_files(year: int):
 # -----------------
 with DAG(
     dag_id="Annual_data",
-    start_date=datetime(2001, 1, 1),
+    start_date=datetime(START_YEAR, 1, 1),
     schedule_interval=None, # Trigger manually
     catchup=False,
     max_active_tasks=8
 ) as dag:
     
-    for year in range(2001, 2025):
+    for year in range(START_YEAR, END_YEAR + 1):
         with TaskGroup(group_id=f"year_{year}") as tg:
             zip_task = download_yearly_zip.override(task_id=f"download_{year}")(year)
             extract_task = extract_year_zip.override(task_id=f"extract_{year}")(zip_task, year)
             dat_task = collect_yearly_dat_files.override(task_id=f"collect_{year}")(extract_task, year)
             process_task = process_dat_files.override(task_id=f"process_{year}")(dat_task, year)
-            cleanup_task = cleanup_year_files.override(task_id=f"cleanup_{year}")(year)
+            upload_task = upload_year_to_gcs.override(task_id=f"upload_{year}")(
+                process_task, year, BUCKET, GCP_CONN_ID
+            )
+            cleanup_task = BashOperator(
+            task_id=f"cleanup_{year}",
+            bash_command=f"""
+                rm -f {DOWNLOAD_DIR}{year}.zip
+                rm -rf {DOWNLOAD_DIR}{year}
+                rm -rf {DOWNLOAD_DIR}{year}_DATS
+                rm -f {DOWNLOAD_DIR}all_sales_{year}.parquet
+            """
+        )
 
-        zip_task >> extract_task >> dat_task >> process_task >> cleanup_task
+        zip_task >> extract_task >> dat_task >> process_task >> upload_task >> cleanup_task

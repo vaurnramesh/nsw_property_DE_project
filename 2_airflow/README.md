@@ -1,5 +1,43 @@
 # Airflow
 
+## SETUP
+
+### Credentials setup
+
+```bash
+echo 'export GOOGLE_APPLICATION_CREDENTIALS="$HOME/.gc/google_credentials_nsw_prop.json"' >> ~/.zshrc
+
+source ~/.zshrc
+
+echo $GOOGLE_APPLICATION_CREDENTIALS
+
+# To activate the google creds
+
+gcloud auth activate-service-account --key-file $GOOGLE_APPLICATION_CREDENTIALS 
+```
+
+You should now see your new google credentials being activated.
+
+### Add Google Cloud Connection in Airflow UI
+
+To allow Airflow to interact with Google Cloud Storage, you need to add a connection using your service account credentials.
+
+1. **Navigate to the Airflow UI:**  
+   `Admin → Connections → + (Add a new record)`
+
+2. **Fill in the connection details:**
+
+   | Field             | Value / Instructions                                         |
+   |------------------|---------------------------------------------------------------|
+   | **Connection Id** | Any sensible name or your Google Cloud Project ID            |
+   | **Connection Type** | `Google Cloud`                                              |
+   | **Project Id**     | Your Google Cloud Project ID                                 |
+   | **Keyfile JSON**   | Paste the contents of your service account JSON file located at `$GOOGLE_APPLICATION_CREDENTIALS` |
+
+3. **Save** the connection.
+
+> Using the Keyfile JSON directly avoids the need to mount local credentials into your Docker container or store secrets in source code.
+
 ## Download yearly ZIP from NSW property website
 
 This DAG automates the retrieval of property sales data from the official NSW Valuer General site.
@@ -86,16 +124,5 @@ The final step consolidates all `.DAT` files from the nested directory structure
 ## Cleanup local temp files
 
 
-## SETUP
 
-### Virtual Environment
 
-```bash
-echo 'export GOOGLE_APPLICATION_CREDENTIALS="$HOME/.gc/google_credentials_nsw_prop.json"' >> ~/.zshrc
-
-source ~/.zshrc
-
-echo $GOOGLE_APPLICATION_CREDENTIALS
-```
-
-You should now see your new google credentials being activated.
