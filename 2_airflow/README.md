@@ -1,5 +1,25 @@
 # Airflow
 
+## Table of Contents
+- [Airflow](#airflow)
+  - [Table of Contents](#table-of-contents)
+  - [SETUP](#setup)
+    - [Credentials setup](#credentials-setup)
+    - [Add Google Cloud Connection in Airflow UI](#add-google-cloud-connection-in-airflow-ui)
+  - [DAG 1: AnnualData](#dag-1-annualdata)
+    - [Phase 1 - Extract](#phase-1---extract)
+      - [Download yearly ZIP from NSW property website](#download-yearly-zip-from-nsw-property-website)
+      - [Extract Inner Zips](#extract-inner-zips)
+    - [Phase 2 - Transform](#phase-2---transform)
+      - [Collect DAT Files](#collect-dat-files)
+      - [Parse/ Transform `.DAT` files to CSV / Parquet](#parse-transform-dat-files-to-csv--parquet)
+    - [Phase 3: Load](#phase-3-load)
+      - [Upload Annual data Parquets to GCS](#upload-annual-data-parquets-to-gcs)
+      - [Create BigQuery datasets and tables](#create-bigquery-datasets-and-tables)
+      - [Run Deduplication/merging queries in BigQuery to consolidate data](#run-deduplicationmerging-queries-in-bigquery-to-consolidate-data)
+      - [Cleanup local temp files](#cleanup-local-temp-files)
+
+
 ## SETUP
 
 ### Credentials setup
@@ -38,7 +58,11 @@ To allow Airflow to interact with Google Cloud Storage, you need to add a connec
 
 > Using the Keyfile JSON directly avoids the need to mount local credentials into your Docker container or store secrets in source code.
 
-## Download yearly ZIP from NSW property website
+## DAG 1: AnnualData
+
+### Phase 1 - Extract
+
+#### Download yearly ZIP from NSW property website
 
 This DAG automates the retrieval of property sales data from the official NSW Valuer General site.
 
@@ -58,7 +82,7 @@ volumes:
 
 This means all downloaded `.zip` and processed `.DAT` files will appear in your local `./data` folder.
 
-### Extract Inner Zips
+#### Extract Inner Zips
 
 The yearly ZIP contains multiple **nested ZIP files** that must be extracted before accessing the `.DAT` files.
 
@@ -80,7 +104,9 @@ The yearly ZIP contains multiple **nested ZIP files** that must be extracted bef
     └── ...
 ```
 
-### Collect DAT Files
+### Phase 2 - Transform
+
+#### Collect DAT Files
 
 The final step consolidates all `.DAT` files from the nested directory structure into a single organized location.
 
@@ -109,20 +135,58 @@ The final step consolidates all `.DAT` files from the nested directory structure
     └── file4.dat
 ```
 
-### Parse/ Transform `.DAT` files to CSV / Parquet
+#### Parse/ Transform `.DAT` files to CSV / Parquet
+
+Once all `.DAT` files are collected, the next step is to parse and normalize them into structured tabular formats suitable for downstream analytics.
+
+**Process**
+1. Each .DAT file is read using a predefined schema.
+
+2. Raw fields (including dates and times) are cleaned and standardized. All date/time fields are converted to Unix timestamps to avoid multiple datetime formats and simplify downstream usage.
+
+3. Transformed datasets are written to both CSV and Parquet formats for compatibility and performance: CSV provides human-readable, universal accessibility. While parquet provides efficient columnar storage optimized for big-data workloads.
+
+4. Logs are generated for each transformation run, capturing: File name processed, Row counts before/after transformation and any parsing/conversion errors.
 
 
-## Upload Parquets to GCS
+### Phase 3: Load
 
+This phase takes the transformed data and makes it queryable in BigQuery. It consists of four steps: uploading the processed files, preparing datasets, running consolidation queries, and cleaning up temporary files.
 
-## Create BigQuery datasets and tables
+#### Upload Annual data Parquets to GCS
 
+* The transformed data (by year) is written out as Parquet files.
 
-## Run Deduplication/merging queries in BigQuery to consolidate data
+* These files are uploaded to Google Cloud Storage (GCS) into a structured bucket path
 
+* Parquet is used as it provides efficient columnar storage, reduces storage cost, and improves query performance in BigQuery external tables.
 
-## Cleanup local temp files
+#### Create BigQuery datasets and tables
 
+* Create or reuse a BigQuery dataset (e.g., project.dataset_name) that will contain all processed tables.
 
+* Define external tables pointing to the uploaded GCS parquet files for raw querying/debugging.
+
+* Create temporary (staging) tables in BigQuery with proper type casting and schema alignment.
+
+* Finally, create the final tables that serve as the authoritative data source for downstream use cases.
+
+#### Run Deduplication/merging queries in BigQuery to consolidate data
+
+* Use SQL scripts to remove duplicate rows caused by source overlaps or re-ingested files.
+
+* Merge annual partitions into a single consolidated table (partitioned by year or event date for performance).
+
+* Ensure schema consistency (e.g., casting to STRING, INTEGER, TIMESTAMP where necessary).
+
+* Validate record counts between external → tmp → final tables to catch data loss or anomalies.
+
+#### Cleanup local temp files
+
+* Remove temporary Parquet files stored locally after successful upload to GCS.
+
+* Clear out any intermediate logs or scratch directories.
+
+* This keeps local disk usage minimal and avoids accidental re-uploads.
 
 

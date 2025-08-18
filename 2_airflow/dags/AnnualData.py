@@ -3,6 +3,7 @@ from airflow.decorators import task
 from airflow.utils.task_group import TaskGroup
 from airflow.providers.google.cloud.hooks.gcs import GCSHook
 from airflow.operators.bash import BashOperator
+from airflow.providers.google.cloud.operators.bigquery import (BigQueryCreateEmptyDatasetOperator, BigQueryInsertJobOperator, BigQueryCreateExternalTableOperator)
 import pandas as pd
 
 from datetime import datetime
@@ -14,9 +15,11 @@ import shutil
 DOWNLOAD_DIR = "/opt/airflow/data/"
 BASE_URL = "https://www.valuergeneral.nsw.gov.au/__psi/yearly/{year}.zip"
 BUCKET = os.environ.get("GCP_GCS_BUCKET")
-GCP_CONN_ID = os.environ.get("AIRFLOW_CONN_GOOGLE_CLOUD_DEFAULT")
+GCP_CONN_ID = "nsw-property-de-project"
+GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
+BIGQUERY_DATASET = "nsw_prop_data_all"
 
-START_YEAR = 2024
+START_YEAR = 2001
 END_YEAR = 2024
 
 def extract_inner_zips(zip_path: str, extract_to_dir: str) -> None:
@@ -87,6 +90,17 @@ def parse_valnet_dat(file_path):
 
     df = pd.DataFrame(sales)
 
+    timestamp_cols = ["processed_datetime", "contract_date", "settlement_date"]
+    for col in timestamp_cols:
+        if col in df.columns and not df[col].isna().all():
+            # Convert to datetime64[ms] to avoid nanosecond precision issues in BQ
+                df[col] = pd.to_datetime(df[col]).dt.floor('ms')
+                # Filter out invalid dates (before 1989 or after 2262)
+                df[col] = df[col].where(
+                    (df[col] >= pd.Timestamp('1989-12-31')) &
+                    (df[col] <= pd.Timestamp('2262-04-11'))
+                )
+
     # Now apply nullable integer conversion after DataFrame creation
     int_cols = ["land_area_sqm", "sale_price"]
     for col in int_cols:
@@ -154,7 +168,7 @@ def process_dat_files(dat_dir: str, year: int) -> str:
     if all_sales:
         final_df = pd.concat(all_sales, ignore_index=True)
         parquet_path = os.path.join(DOWNLOAD_DIR, f"all_sales_{year}.parquet")
-        final_df.to_parquet(parquet_path, index=False, engine="pyarrow")
+        final_df.to_parquet(parquet_path, index=False, engine="pyarrow", coerce_timestamps='ms')
         print(f"\n  -> Saved {len(final_df)} records to {parquet_path}")
         return parquet_path
     else:
@@ -182,6 +196,52 @@ with DAG(
     max_active_tasks=8
 ) as dag:
     
+    # task 6
+    create_dataset = BigQueryCreateEmptyDatasetOperator(
+        task_id="create_dataset_if_not_exists",
+        dataset_id=BIGQUERY_DATASET,
+        project_id=GCP_PROJECT_ID,
+        location="australia-southeast1",
+        gcp_conn_id=GCP_CONN_ID,
+        exists_ok=True,
+    )
+
+    # task 7
+    create_final_table = BigQueryInsertJobOperator(
+        task_id="create_final_table",
+        location="australia-southeast1",
+        gcp_conn_id=GCP_CONN_ID,
+        configuration={
+            "query": {
+                "query": f"""
+                CREATE TABLE IF NOT EXISTS `{GCP_PROJECT_ID}.{BIGQUERY_DATASET}.final_table`
+                (
+                    unique_row_id STRING,
+                    lga_code STRING,
+                    property_id STRING,
+                    processed_datetime DATETIME,
+                    building_name STRING,
+                    section_no STRING,
+                    street_no STRING,
+                    street_name STRING,
+                    locality STRING,
+                    postcode STRING,
+                    land_area_sqm INT64,
+                    area_type STRING,
+                    contract_date DATETIME,
+                    settlement_date DATETIME,
+                    sale_price INT64,
+                    zoning STRING,
+                    property_category STRING,
+                    property_description STRING
+                )
+                """,
+                "useLegacySql": False
+            }
+        },
+        retries=3,
+    )
+
     for year in range(START_YEAR, END_YEAR + 1):
         with TaskGroup(group_id=f"year_{year}") as tg:
             zip_task = download_yearly_zip.override(task_id=f"download_{year}")(year)
@@ -191,6 +251,88 @@ with DAG(
             upload_task = upload_year_to_gcs.override(task_id=f"upload_{year}")(
                 process_task, year, BUCKET, GCP_CONN_ID
             )
+
+            external_table = BigQueryInsertJobOperator(
+                task_id=f"create_external_table_{year}",
+                location="australia-southeast1",
+                gcp_conn_id=GCP_CONN_ID,
+                configuration={
+                    "query": {
+                        "query": f"""
+                            CREATE OR REPLACE EXTERNAL TABLE `{GCP_PROJECT_ID}.{BIGQUERY_DATASET}.external_sales_{year}`
+                            (
+                                lga_code STRING,
+                                property_id STRING,
+                                processed_datetime DATETIME,
+                                building_name STRING,
+                                section_no STRING,
+                                street_no STRING,
+                                street_name STRING,
+                                locality STRING,
+                                postcode STRING,
+                                land_area_sqm INT64,
+                                area_type STRING,
+                                contract_date DATETIME,
+                                settlement_date DATETIME,
+                                sale_price INT64,
+                                zoning STRING,
+                                property_category STRING,
+                                property_description STRING
+                            )
+                            OPTIONS (
+                                uris = ['gs://{BUCKET}/raw/yearly/all_sales_{year}.parquet'],
+                                format = 'PARQUET'
+                            );
+                        """,
+                        "useLegacySql": False,
+                    }
+                },
+                retries=3,
+                dag=dag
+            )
+
+            tmp_table = BigQueryInsertJobOperator(
+                task_id=f"tmp_table_{year}",
+                location="australia-southeast1",
+                gcp_conn_id=GCP_CONN_ID,
+                configuration={
+                    "query": {
+                        "query": f"""
+                        CREATE OR REPLACE TABLE `{GCP_PROJECT_ID}.{BIGQUERY_DATASET}.sales_{year}_tmp` AS
+                        SELECT
+                            TO_HEX(MD5(CONCAT(
+                                COALESCE(property_id, ""),
+                                COALESCE(CAST(contract_date AS STRING), ""),
+                                COALESCE(CAST(settlement_date AS STRING), ""),
+                                COALESCE(CAST(sale_price AS STRING), ""),
+                                COALESCE(CAST(postcode AS STRING), "")
+                            ))) AS unique_row_id,
+                            *
+                        FROM `{GCP_PROJECT_ID}.{BIGQUERY_DATASET}.external_sales_{year}`
+                        """,
+                        "useLegacySql": False,
+                    }
+                },
+            )
+
+            merge_final = BigQueryInsertJobOperator(
+                    task_id=f"merge_final_{year}",
+                    location="australia-southeast1",
+                    gcp_conn_id=GCP_CONN_ID,
+                    configuration={
+                        "query": {
+                            "query": f"""
+                            MERGE INTO `{GCP_PROJECT_ID}.{BIGQUERY_DATASET}.final_table` T
+                            USING `{GCP_PROJECT_ID}.{BIGQUERY_DATASET}.sales_{year}_tmp` S
+                            ON T.unique_row_id = S.unique_row_id
+                            WHEN NOT MATCHED THEN
+                            INSERT ROW
+                            """,
+                            "useLegacySql": False,
+                        }
+                    },
+                )
+
             cleanup_task = BashOperator(
             task_id=f"cleanup_{year}",
             bash_command=f"""
@@ -201,4 +343,8 @@ with DAG(
             """
         )
 
-        zip_task >> extract_task >> dat_task >> process_task >> upload_task >> cleanup_task
+
+            zip_task >> extract_task >> dat_task >> process_task >> upload_task
+            upload_task >> external_table >> tmp_table >> merge_final >> cleanup_task
+
+        create_dataset >> create_final_table >> tg
