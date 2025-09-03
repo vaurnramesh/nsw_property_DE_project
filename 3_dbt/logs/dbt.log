@@ -1,0 +1,32 @@
+[0m21:37:55.397478 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x1046fc1a0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x105b839d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x105b83b10>]}
+
+
+============================== 21:37:55.401434 | 21abdc99-dce6-4b71-8afe-64203df45d90 ==============================
+[0m21:37:55.401434 [info ] [MainThread]: Running with dbt=1.10.10
+[0m21:37:55.401905 [debug] [MainThread]: running dbt with arguments {'profiles_dir': '/Users/varunramesh/.dbt', 'no_print': 'None', 'log_cache_events': 'False', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'log_format': 'default', 'warn_error': 'None', 'target_path': 'None', 'introspect': 'True', 'empty': 'False', 'indirect_selection': 'eager', 'invocation_command': 'dbt compile --select stg_google_nswprop_data_2001_2024', 'use_experimental_parser': 'False', 'use_colors': 'True', 'write_json': 'True', 'partial_parse': 'True', 'quiet': 'False', 'debug': 'False', 'send_anonymous_usage_stats': 'True', 'log_path': 'logs', 'cache_selected_only': 'False', 'version_check': 'True', 'static_parser': 'True', 'fail_fast': 'False', 'printer_width': '80'}
+[0m21:37:55.402443 [error] [MainThread]: Encountered an error:
+Runtime Error
+  No dbt_project.yml found at expected path /Users/varunramesh/Documents/Personal/Learning/my-projects/nsw_property_DE_project/3_dbt/dbt_project.yml
+  Verify that each entry within packages.yml (and their transitive dependencies) contains a file named dbt_project.yml
+  
+[0m21:37:55.425647 [debug] [MainThread]: Resource report: {"command_name": "compile", "command_success": false, "command_wall_clock_time": 0.12656188, "process_in_blocks": "0", "process_kernel_time": 0.193381, "process_mem_max_rss": "104398848", "process_out_blocks": "0", "process_user_time": 0.768587}
+[0m21:37:55.426077 [debug] [MainThread]: Command `dbt compile` failed at 21:37:55.426021 after 0.13 seconds
+[0m21:37:55.426296 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x105b6eea0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x105c08290>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x105a06580>]}
+[0m21:37:55.426494 [debug] [MainThread]: Flushing usage events
+[0m21:37:56.480321 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m21:39:38.281251 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10480c1a0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10627f9d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10627fb10>]}
+
+
+============================== 21:39:38.285236 | 5c41469c-0021-45e2-9ac7-d21f3ce4dc00 ==============================
+[0m21:39:38.285236 [info ] [MainThread]: Running with dbt=1.10.10
+[0m21:39:38.285565 [debug] [MainThread]: running dbt with arguments {'quiet': 'False', 'use_colors': 'True', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'target_path': 'None', 'cache_selected_only': 'False', 'fail_fast': 'False', 'no_print': 'None', 'invocation_command': 'dbt compile --select stg_google_nswprop_data_2001_2024', 'debug': 'False', 'static_parser': 'True', 'indirect_selection': 'eager', 'send_anonymous_usage_stats': 'True', 'write_json': 'True', 'introspect': 'True', 'log_path': 'logs', 'warn_error': 'None', 'profiles_dir': '/Users/varunramesh/.dbt', 'use_experimental_parser': 'False', 'printer_width': '80', 'version_check': 'True', 'empty': 'False', 'partial_parse': 'True', 'log_format': 'default', 'log_cache_events': 'False'}
+[0m21:39:38.285920 [error] [MainThread]: Encountered an error:
+Runtime Error
+  No dbt_project.yml found at expected path /Users/varunramesh/Documents/Personal/Learning/my-projects/nsw_property_DE_project/3_dbt/dbt_project.yml
+  Verify that each entry within packages.yml (and their transitive dependencies) contains a file named dbt_project.yml
+  
+[0m21:39:38.287948 [debug] [MainThread]: Resource report: {"command_name": "compile", "command_success": false, "command_wall_clock_time": 0.05812225, "process_in_blocks": "0", "process_kernel_time": 0.16488, "process_mem_max_rss": "104103936", "process_out_blocks": "0", "process_user_time": 0.697619}
+[0m21:39:38.288222 [debug] [MainThread]: Command `dbt compile` failed at 21:39:38.288172 after 0.06 seconds
+[0m21:39:38.288407 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x10626eea0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x106308290>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x106106580>]}
+[0m21:39:38.288569 [debug] [MainThread]: Flushing usage events
+[0m21:39:39.302900 [debug] [MainThread]: An error was encountered while trying to flush usage events

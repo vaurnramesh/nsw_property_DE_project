@@ -1,0 +1,94 @@
+version: 2
+
+sources:
+  - name: staging
+    database: nsw-property-de-project
+    schema: nsw_prop_data_all
+    tables:
+      - name: final_table
+        description: "Raw NSW property sales data from 2001–2024, ingested by Airflow"
+
+models:
+  - name: stg_google_nswprop_data_2001_2024
+    description: >
+      Staging model for NSW property transactions (2001–2024).
+      This table standardizes datatypes, cleans raw inputs, and prepares the data
+      for transformation into fact and dimension tables for analytics.
+    columns:
+      - name: unique_row_id
+        description: Unique identifier for each row generated during ingestion.
+        tests:
+          - unique:
+              severity: warn
+          - not_null:
+              severity: warn
+
+      - name: lga_code
+        description: Local Government Area code associated with the property.
+
+      - name: property_id
+        description: >
+          Unique identifier of the property assigned by NSW data sources.
+        tests:
+          - not_null:
+              severity: warn
+
+      - name: processed_datetime
+        description: Timestamp when the record was processed/ingested.
+
+      - name: building_name
+        description: Name of the building (if available, often blank for houses).
+
+      - name: section_no
+        description: Unit/Apartment number within the building
+
+      - name: street_no
+        description: Street number of the property.
+
+      - name: street_name
+        description: Street name of the property.
+
+      - name: locality
+        description: Suburb/locality of the property.
+
+      - name: postcode
+        description: 4-digit postal code of the property address.
+
+      - name: land_area_sqm
+        description: Land area in square metres (if available).
+
+      - name: area_type
+        description: Code indicating type of area measurement (e.g., M = metric).
+
+      - name: contract_date
+        description: Date on which the property contract was signed.
+
+      - name: settlement_date
+        description: Date on which the property settlement was completed.
+
+      - name: sale_price
+        description: >
+          Sale price of the property in Australian dollars.
+        tests:
+          - not_null:
+              severity: warn
+
+      - name: zoning
+        description: >
+          Zoning classification of the property (e.g., Residential, Commercial).
+
+      - name: property_category
+        description: >
+          High-level category of the property, e.g. R = Residence, V = Vacant Land.
+
+      - name: property_description
+        description: >
+          Free-text description of the property (e.g., "RESIDENCE", "VACANT LAND").
+      
+      - name: property_type
+        description: "Derived classification of property: Unit/Apartment, Townhouse, or House."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Unit/Apartment', 'Townhouse', 'House']
+              severity: error
