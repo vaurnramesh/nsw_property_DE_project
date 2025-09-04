@@ -91,7 +91,10 @@ select
     upper(trim(property_description)) as property_description,
 
     -- Property type classification using macro
-    {{ classify_property_type('section_no', 'street_no', 'property_category') }} as property_type
+    {{ classify_property_type('section_no', 'street_no', 'property_category') }} as property_type,
+
+    -- Property type flag for unusual property types
+    {{ classify_property_flag('section_no', 'street_no', 'property_category') }} AS property_type_flag
 
 from deduped
 where rn = 1

@@ -1,4 +1,4 @@
-# QA
+# QA (2001-2024)
 ## Data Quality result - 03/09/2025
 
 ```csv
@@ -46,3 +46,25 @@ DUPLICATES,1609587,2,,,,,,
 - section_mismatch: 9,292 (section_no exists but property_type isn’t UNIT/APARTMENT)
 - townhouse_mismatch: 61,584 (street_no matches townhouse pattern but property_type isn’t Townhouse)
 - vacantland_mismatch: 0
+
+
+## Data Quality result - 04/09/2024
+
+From the above observation, we found that the property type was not applied properly due to various factors - 
+
+1. Data Entry: In the earlier years, the property is sold as a unit or a townhouse but is categorised as a Vacant Land. The final data shows vacant land but we have unit numbers and street names with alphabets which could indicate a townhouse or a unit. 
+2. Edge-case patterns in address formatting: While townhouses generally do not have unit numbers, some addresses in the dataset combine unit numbers with street addresses, indicating units within townhouse complexes. For example:
+
+- `13A George Street` is likely a standalone townhouse.
+
+- `2/14 Edward Street` indicates a unit within a townhouse-style building.
+
+In our data, we observed roughly 40,000 such instances, where unit numbers and street identifiers together suggested a mismatch between the recorded property_category and the actual address format.
+
+To account for these edge cases, we introduced a separate flag column, property_type_flag, with the following values:
+
+* `UNIT_WITH_VACANTLAND_FLAG` → Unit number exists but property is recorded as Vacant Land.
+
+* `TOWNHOUSE_WITH_VACANTLAND_FLAG` → Townhouse pattern detected but property is recorded as Vacant Land.
+
+* `TOWNHOUSE_WITH_UNIT_FLAG` → Unit within a townhouse-style property.
