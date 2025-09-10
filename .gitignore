@@ -2,7 +2,7 @@
 ny_taxi_postgres_data
 *.json
 .env
-02_workflow_orchestration/airflow/logs/*
+3_dbt/logs/*
 .DS_Store
 *__pycache__
 .ipynb_checkpoints
@@ -49,3 +49,4 @@ terraform.rc
 2_airflow/local_2024/data_test
 2_airflow/data/*
 2_airflow/logs/*
+3_dbt/logs/*

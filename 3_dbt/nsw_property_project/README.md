@@ -4,6 +4,7 @@
 Try running the following commands:
 
 ```
+- dbt deps
 - dbt run
 - dbt test
 - dbt debug
