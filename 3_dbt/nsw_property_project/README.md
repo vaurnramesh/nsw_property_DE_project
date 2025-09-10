@@ -1,10 +1,11 @@
 
 ### Starter commands
 
-Try running the following commands:
+Run the following commands:
 
 ```
 - dbt deps
+- dbt seed --select <seed_name>
 - dbt run
 - dbt test
 - dbt debug

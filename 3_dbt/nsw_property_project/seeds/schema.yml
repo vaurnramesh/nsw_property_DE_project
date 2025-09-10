@@ -1,0 +1,21 @@
+version: 2
+seeds:
+  - name: postcode_to_gccsa
+    description: "Mapping between postcode and Greater Capital City Statistical Areas (Greater Sydney or Rest of NSW)."
+    columns:
+      - name: POSTCODE
+        description: "Australian postcode."
+        tests:
+          - not_null
+      - name: GCCSA_CODE_2021
+        description: "Greater Capital City Statistical Area code."
+      - name: GCCSA_NAME_2021
+        description: "Greater Capital City Statistical Area name."
+      - name: RATIO_FROM_TO
+        description: "Ratio value for quality indicator."
+      - name: INDIV_TO_REGION_QLTY_INDICATOR
+        description: "Quality indicator for individual to region mapping."
+      - name: OVERALL_QUALITY_INDICATOR
+        description: "Overall quality indicator."
+      - name: BMOS_NULL_FLAG
+        description: "Null flag for BMOS."

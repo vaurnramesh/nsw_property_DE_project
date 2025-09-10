@@ -31,3 +31,45 @@ models:
         description: "ISO week string (YYYY-W##)."
       - name: year_week_id
         description: "Integer surrogate key combining year and week (YYYYWW)."
+
+  
+  - name: dim_location
+    description: "Dimension table containing location details (postcode, suburb, LGA, GCCSA classification for NSW)."
+    columns:
+      - name: location_id
+        description: "Surrogate primary key for location (hashed combination of postcode, suburb, lga_code)."
+        tests:
+          - not_null
+          - unique
+
+      - name: postcode
+        description: "Postcode of the property (integer)."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_google_nswprop_data_2001_2024')
+              field: postcode
+
+      - name: suburb
+        description: "Suburb name from the raw property data."
+        tests:
+          - not_null
+
+      - name: lga_code
+        description: "Local Government Area code for the property."
+        tests:
+          - not_null
+
+      - name: gccsa_code
+        description: "Greater Capital City Statistical Area code (Greater Sydney or Rest of NSW)."
+        tests:
+          - accepted_values:
+              values: ['1GSYD', '1RNSW']
+              quote: true
+
+      - name: gccsa_name
+        description: "Greater Capital City Statistical Area name (Greater Sydney or Rest of NSW)."
+        tests:
+          - accepted_values:
+              values: ['Greater Sydney', 'Rest of NSW']
+              quote: true
