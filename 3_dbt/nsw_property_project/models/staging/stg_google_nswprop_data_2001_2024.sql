@@ -15,15 +15,40 @@ with raw as (
     FROM {{ source('staging', 'final_table') }}
 ),
 
--- Tier 2: Resolve near-duplicate (choose latest snapsot by processed_datetime)
-deduped as (
-    SELECT
-        *,
-        ROW_NUMBER() over (
-            PARTITION BY unique_row_id
-            ORDER BY processed_datetime DESC
-        ) as rn
-    FROM raw
+/**
+Stage 1: Deduplicate by unique_row_id
+- Keep only the latest snapshot per unique_row_id
+- Guarantees uniqueness for downstream incremental models
+**/
+deduped_unique as (
+    select *
+    from (
+        select *,
+            row_number() over (
+                partition by unique_row_id
+                order by processed_datetime desc
+            ) as rn_unique
+        from raw
+    )
+    where rn_unique = 1
+),
+
+/**
+Stage 2: Optional deduplication by transaction-level fields
+- Collapse near-duplicate snapshots that may differ in minor fields
+- Keeps only the latest processed_datetime per property transaction
+**/
+deduped_snapshot as (
+    select *
+    from (
+        select *,
+            row_number() over (
+                partition by property_id, contract_date, settlement_date, street_no, street_name, locality, postcode
+                order by processed_datetime desc
+            ) as rn_snapshot
+        from deduped_unique
+    )
+    where rn_snapshot = 1
 )
 
 select
@@ -61,5 +86,4 @@ select
     -- Property type flag for unusual property types
     {{ classify_property_flag('section_no', 'street_no', 'property_category') }} AS property_type_flag
 
-from deduped
-where rn = 1
+from deduped_snapshot

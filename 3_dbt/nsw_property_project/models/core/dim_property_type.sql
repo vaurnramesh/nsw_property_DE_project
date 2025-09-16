@@ -16,10 +16,10 @@ with src as (
 canon as (
     SELECT DISTINCT
         CASE
-            WHEN REGEXP_CONTAINS(UPPER(TRIM(property_type)), r'HOUSE') then 'House'
-            when regexp_contains(upper(trim(property_type)), r'UNIT|APARTMENT') then 'Unit / Apartment'
-            when regexp_contains(upper(trim(property_type)), r'TOWN') then 'Townhouse'
-            when regexp_contains(upper(trim(property_type)), r'VACANT') then 'Vacant Land'
+            when regexp_contains(upper(trim(property_type)), r'TOWN\s?HOUSE') then 'TOWN HOUSE'
+            WHEN REGEXP_CONTAINS(UPPER(TRIM(property_type)), r'HOUSE') then 'HOUSE'
+            when regexp_contains(upper(trim(property_type)), r'UNIT/APARTMENT') then 'UNIT/APARTMENT'
+            when regexp_contains(upper(trim(property_type)), r'VACANT LAND') then 'VACANT LAND'
             else UPPER(TRIM(property_type))
         END AS property_type_name,
         property_type_flag,
@@ -41,12 +41,12 @@ SELECT
     -- Booleans for slicing
     CASE 
         WHEN property_category_name = 'Residential' THEN true
-        WHEN property_type_name in ('House', 'Unit / Apartment', 'Townhouse') THEN true
+        WHEN property_type_name in ('HOUSE', 'UNIT/APARTMENT', 'TOWN HOUSE') THEN true
         ELSE false 
     END AS is_residential,
 
     CASE
-        WHEN property_category_name = 'Vacant' OR property_type_name = 'Vacant Land' THEN true
+        WHEN property_category_name = 'VACANT' OR property_type_name = 'VACANT LAND' THEN true
         ELSE false 
     END AS is_vacant_land,
 
