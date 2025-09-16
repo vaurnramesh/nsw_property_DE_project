@@ -73,3 +73,71 @@ models:
           - accepted_values:
               values: ['Greater Sydney', 'Rest of NSW']
               quote: true
+
+  - name: dim_property_type
+    description: "Canonical property types (House, Unit / Apartment, Townhouse, Vacant Land), property_category and special-case flags."
+    columns:
+      - name: property_type_sk
+        tests: [unique, not_null]
+      - name: property_type
+        tests: [not_null]
+      - name: property_category
+        description: "Canonical category derived from staging property_category (R -> Residential, V -> Vacant, else Other)."
+      - name: property_type_flag
+        description: "Flag from staging that captures combined-type edge cases (e.g. TOWNHOUSE_WITH_UNIT_FLAG)."
+      - name: is_residential
+      - name: is_vacant_land
+
+
+  - name: dim_property
+    description: "Dimension table for properties in NSW, includes latest snapshot per property."
+    columns:
+      - name: property_sk
+        description: "Surrogate key for property, generated from property_id + address fields."
+        tests:
+          - unique
+          - not_null
+
+      - name: property_source_id
+        description: "Original property ID from staging table."
+        tests:
+          - not_null
+
+      - name: building_name
+        description: "Building name or unit complex name, if applicable."
+
+      - name: unit_number
+        description: "Unit number for strata/townhouse properties."
+
+      - name: street_number
+        description: "Street number of the property."
+
+      - name: street_name
+        description: "Street name of the property."
+        tests:
+          - not_null
+
+      - name: suburb
+        description: "Suburb name."
+        tests:
+          - not_null
+
+      - name: postcode
+        description: "Postal code of the property."
+        tests:
+          - not_null
+
+      - name: land_area_sqm
+        description: "Land area in square meters."
+
+      - name: zoning
+        description: "Zoning classification for the property."
+
+      - name: property_description
+        description: "Description from staging table (e.g., RESIDENCE, VACANT LAND)."
+
+      - name: created_at
+        description: "Timestamp when the row was created in the dimension."
+
+      - name: last_seen
+        description: "Timestamp when this property record was last updated in staging (for audit)."

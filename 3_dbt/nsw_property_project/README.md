@@ -7,7 +7,7 @@ Run the following commands:
 - dbt deps
 - dbt seed --select <seed_name>
 - dbt run
-- dbt test
+- dbt test --models 'core.dim_*'
 - dbt debug
 ```
 debug command to test connection
