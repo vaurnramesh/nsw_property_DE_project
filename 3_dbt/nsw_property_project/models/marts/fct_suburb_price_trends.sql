@@ -4,6 +4,8 @@
     alias='fct_suburb_price_trends'
 ) }}
 
+-- @Unused Mart
+
 WITH base AS (
     SELECT
         d.year,

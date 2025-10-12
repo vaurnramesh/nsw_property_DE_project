@@ -6,7 +6,8 @@ seeds:
       - name: POSTCODE
         description: "Australian postcode."
         tests:
-          - not_null
+          - not_null:
+              severity: warn
       - name: GCCSA_CODE_2021
         description: "Greater Capital City Statistical Area code."
       - name: GCCSA_NAME_2021

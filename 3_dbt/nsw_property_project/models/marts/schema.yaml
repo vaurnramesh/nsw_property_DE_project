@@ -1,0 +1,245 @@
+version: 2
+
+models:
+  - name: fct_suburb_price_periods
+    description: >
+      This fact table summarises median property prices and growth metrics per suburb, 
+      property type, and region category by year. It includes year-over-year growth, 
+      3-year and 5-year CAGR, and reliability flags based on data quality thresholds.
+
+    columns:
+      - name: suburb
+        description: Suburb name where the property is located.
+        tests:
+          - not_null:
+              severity: warn
+          - relationships:
+              to: ref('dim_location_cleaned')
+              field: suburb
+
+      - name: property_type
+        description: Type of property (e.g. HOUSE, UNIT/APARTMENT, TOWNHOUSE).
+        tests:
+          - not_null:
+              severity: warn
+          - accepted_values:
+              values: ['HOUSE', 'UNIT/APARTMENT', 'TOWNHOUSE']
+              severity: warn
+
+      - name: region_category
+        description: Regional classification such as 'Greater Sydney' or 'Rest of NSW'.
+        tests:
+          - not_null:
+              severity: warn
+          - accepted_values:
+              values: ['Greater Sydney', 'Rest of NSW']
+
+      - name: current_year
+        description: The most recent year of data available for the suburb-property combination.
+        tests:
+          - not_null
+
+      - name: current_median_price
+        description: Median sale price in the current year after outlier removal.
+      - name: current_year_sales
+        description: Total sales count for the current year.
+      - name: price_1y_ago
+        description: Median sale price one year before the current year.
+      - name: price_3y_ago
+        description: Median sale price three years before the current year.
+      - name: price_5y_ago
+        description: Median sale price five years before the current year.
+
+      - name: growth_1y_pct
+        description: Year-over-year percentage growth in median price.
+      - name: growth_3y_pct
+        description: 3-year total growth percentage.
+      - name: growth_5y_pct
+        description: 5-year total growth percentage.
+      - name: cagr_3y_pct
+        description: Compound annual growth rate over 3 years.
+      - name: cagr_5y_pct
+        description: Compound annual growth rate over 5 years.
+
+      - name: total_sales_1y
+        description: Total number of sales within the last 1 year window.
+      - name: total_sales_3y
+        description: Total number of sales within the last 3 years.
+      - name: total_sales_5y
+        description: Total number of sales within the last 5 years.
+
+      - name: years_in_3y_window
+        description: Number of distinct years with data in the last 3 years.
+      - name: years_in_5y_window
+        description: Number of distinct years with data in the last 5 years.
+
+      - name: total_years_with_data
+        description: Total number of years with available sales data for this suburb-property combination.
+      - name: lifetime_sales
+        description: Total number of sales across all years available.
+
+      - name: has_reliable_1y_growth
+        description: Flag indicating if 1-year growth metric is reliable (based on data thresholds).
+      - name: has_reliable_3y_growth
+        description: Flag indicating if 3-year growth metric is reliable (based on data thresholds).
+      - name: has_reliable_5y_growth
+        description: Flag indicating if 5-year growth metric is reliable (based on data thresholds).
+      - name: is_reliable_suburb
+        description: True if suburb meets minimum data completeness (≥50 sales and ≥5 years of data).
+
+    tests:
+      - unique:
+          column_name: ['suburb', 'property_type', 'region_category']
+          severity: warn
+      - dbt_utils.expression_is_true:
+          expression: "current_median_price > 0"
+
+  - name: fct_sales_volume
+    description: >
+      Aggregated fact table summarising property sales volumes, prices, and total transaction value 
+      by time period, location, and property characteristics. 
+      Used for market activity trends, sales heatmaps, and volume reporting.
+
+    columns:
+      # ---- TIME DIMENSIONS ----
+      - name: year
+        description: Calendar year of the sale period.
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 2000
+                max_value: 2050
+
+      - name: quarter
+        description: Calendar quarter of the sale period (1-4).
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3, 4]
+              quote: false
+
+      - name: month
+        description: Month number of the sale period (1-12).
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1,2,3,4,5,6,7,8,9,10,11,12]
+              quote: false
+
+      - name: month_name
+        description: Month name derived from the date dimension (e.g., 'January').
+        tests:
+          - not_null
+
+      - name: year_quarter
+        description: Concatenated field in format YYYY-Qn (e.g., 2024-Q2).
+        tests:
+          - not_null
+
+      - name: year_month
+        description: Concatenated field in format YYYY-MM (e.g., 2024-05).
+        tests:
+          - not_null
+
+      - name: year_start_date
+        description: The first day of the calendar year, used for YoY comparisons.
+        tests:
+          - not_null
+
+      - name: month_start_date
+        description: The first day of the month, used for MoM comparisons.
+        tests:
+          - not_null
+
+      # ---- LOCATION DIMENSIONS ----
+      - name: region
+        description: GCCSA region name (e.g., 'Greater Sydney', 'Rest of NSW').
+        tests:
+          - not_null:
+              severity: warn
+          - accepted_values:
+              values: ['Greater Sydney', 'Rest of NSW']
+
+      - name: lga
+        description: Local Government Area code or name for the suburb.
+        tests:
+          - not_null:
+              severity: warn
+
+      - name: suburb
+        description: Suburb name where the property is located.
+        tests:
+          - not_null:
+              severity: warn
+          - relationships:
+              to: ref('dim_location_cleaned')
+              field: suburb
+
+      - name: postcode
+        description: 4-digit postcode for the property.
+        tests:
+          - not_null:
+              severity: warn
+
+      # ---- PROPERTY DIMENSIONS ----
+      - name: property_type
+        description: Type of property (e.g. HOUSE, UNIT/APARTMENT, TOWNHOUSE, VACANT LAND).
+        tests:
+          - not_null:
+              severity: warn
+
+      - name: property_category
+        description: Broader classification of the property (e.g., Residential, Commercial).
+
+      # ---- METRICS ----
+      - name: total_sales
+        description: Total number of distinct property sale transactions in the given time and area.
+        tests:
+          - not_null
+
+      - name: median_price
+        description: Median sale price for transactions in the period.
+        tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 100000
+
+      - name: avg_price
+        description: Average sale price for transactions in the period.
+        tests:
+         - dbt_utils.accepted_range:
+              arguments:
+                min_value: 100000
+
+      - name: min_price
+        description: Minimum sale price for the period.
+
+      - name: max_price
+        description: Maximum sale price for the period.
+
+      - name: total_value
+        description: Sum of all sale prices for the period (total market value).
+        tests:
+          - not_null:
+              severity: warn
+
+    tests:
+      - unique:
+          column_name: ['year', 'month', 'region', 'suburb', 'property_type']
+          severity: warn
+
+
+  - name: fct_property_price_trends
+    description: Annual median sale price trends by region and property type since 2001.
+    columns:
+      - name: sale_year
+        description: Year of property sale
+      - name: region_category
+        description: 'Either Greater Sydney or Rest of NSW'
+      - name: property_type
+        description: 'Type of property (House, Unit/Apartment, etc.)'
+      - name: median_sale_price
+        description: 'Median sale price for that property type and region in the given year'
+
+

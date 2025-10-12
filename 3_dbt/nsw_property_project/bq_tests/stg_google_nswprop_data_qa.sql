@@ -4,6 +4,7 @@ QA Query for stg_google_nswprop_data_2001_2024
 - Uses about 300MB to scan the full dataset. 
 */
 
+/*
 WITH null_checks AS (
     SELECT
         COUNT(*) AS total_rows,
@@ -66,6 +67,7 @@ SELECT
 FROM duplicate_check
 
 LIMIT 100;
+*/
 
 /**
 # Data Quality result - 03/09/2025

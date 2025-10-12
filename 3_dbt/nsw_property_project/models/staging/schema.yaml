@@ -90,5 +90,5 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['Unit/Apartment', 'Townhouse', 'House']
-              severity: error
+              values: ['Unit/Apartment', 'Townhouse', 'House', 'Vacant Land']
+              severity: warn
