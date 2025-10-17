@@ -1,20 +1,54 @@
+# NSW Property dbt Project
 
-### Starter commands
+## Quick Start
 
-Run the following commands:
+### Essential Commands
+```bash
+# Install dbt dependencies
+dbt deps
 
+# Load seed data (postcode to GCCSA mappings)
+dbt seed --select postcode_to_gccsa
+
+# Run all models
+dbt run
+
+# Run specific layers
+dbt run --select staging.*
+dbt run --select core.*
+dbt run --select marts.*
+
+# Test models
+dbt test
+dbt test --select core.dim_*
+dbt test --select fact_sales
+
+# Full build (run + test)
+dbt build
+
+# Compile SQL without running
+dbt compile
+
+# Debug connection issues
+dbt debug
+
+# Clean compiled files
+dbt clean
 ```
-- dbt deps
-- dbt seed --select <seed_name>
-- dbt run
-- dbt test --models 'core.dim_*'
-- dbt debug
-```
-debug command to test connection
 
-### Resources:
+---
 
-- DBT Settings is currently in - `/Users/<username>/.dbt/profiles.yml`
+## Configuration
+
+- **dbt profiles location**: `~/.dbt/profiles.yml`
+- **Project name**: `nsw_property_project`
+- **Default target**: `dev`
+- **BigQuery location**: `australia-southeast1`
+
+---
+
+## Resources
+
 - Learn more about dbt [in the docs](https://docs.getdbt.com/docs/introduction)
 - Check out [Discourse](https://discourse.getdbt.com/) for commonly asked questions and answers
 - Join the [chat](https://community.getdbt.com/) on Slack for live discussions and support
