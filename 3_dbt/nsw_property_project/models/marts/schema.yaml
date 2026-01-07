@@ -49,6 +49,8 @@ models:
         description: Median sale price three years before the current year.
       - name: price_5y_ago
         description: Median sale price five years before the current year.
+      - name: price_10y_ago
+        description: Median sale price ten years before the current year.
 
       - name: growth_1y_pct
         description: Year-over-year percentage growth in median price.
@@ -56,10 +58,15 @@ models:
         description: 3-year total growth percentage.
       - name: growth_5y_pct
         description: 5-year total growth percentage.
+      - name: growth_10y_pct
+        description: 10-year total growth percentage.
+
       - name: cagr_3y_pct
         description: Compound annual growth rate over 3 years.
       - name: cagr_5y_pct
         description: Compound annual growth rate over 5 years.
+      - name: cagr_10y_pct
+        description: Compound annual growth rate over 10 years.
 
       - name: total_sales_1y
         description: Total number of sales within the last 1 year window.
@@ -67,11 +74,15 @@ models:
         description: Total number of sales within the last 3 years.
       - name: total_sales_5y
         description: Total number of sales within the last 5 years.
+      - name: total_sales_10y
+        description: Total number of sales within the last 10 years.
 
       - name: years_in_3y_window
         description: Number of distinct years with data in the last 3 years.
       - name: years_in_5y_window
         description: Number of distinct years with data in the last 5 years.
+      - name: years_in_10y_window
+        description: Number of distinct years with data in the last 10 years.
 
       - name: total_years_with_data
         description: Total number of years with available sales data for this suburb-property combination.
@@ -84,6 +95,8 @@ models:
         description: Flag indicating if 3-year growth metric is reliable (based on data thresholds).
       - name: has_reliable_5y_growth
         description: Flag indicating if 5-year growth metric is reliable (based on data thresholds).
+      - name: has_reliable_10y_growth
+        description: Flag indicating if 10-year growth metric is reliable (based on data thresholds).
       - name: is_reliable_suburb
         description: True if suburb meets minimum data completeness (≥50 sales and ≥5 years of data).
 

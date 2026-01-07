@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project builds a complete end-to-end data pipeline to model and analyze NSW property sales data from 2001 to 2024. 
+This project builds a complete end-to-end data pipeline to model and analyze NSW property sales data from 2001 to 2025. 
 
 This project uses Terraform, Airflow and dbt to manage infrastructure, data ingestion and transform into analytics ready BigQuery warehouse 
 
@@ -99,7 +99,7 @@ The pipeline follows an **ELT pattern** with initial transformation in Airflow b
 - NSW Valuer General yearly ZIP archives
 - URL: `https://www.valuergeneral.nsw.gov.au/__psi/yearly/{year}.zip`
 - Format: Nested ZIP files containing .DAT files (VALNET format)
-- Coverage: 2001-2024 (24 years)
+- Coverage: 2001-2025 (25 years)
 
 **Process**:
 1. **Download yearly ZIP** - Fetch archive from NSW Valuer General website

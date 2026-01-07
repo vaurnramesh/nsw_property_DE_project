@@ -103,7 +103,11 @@ price_windows AS (
         
         -- 5 years ago
         y5.median_price AS price_5y_ago,
-        y5.sales_count AS sales_5y_ago
+        y5.sales_count AS sales_5y_ago,
+
+        -- 10 years ago
+        y10.median_price AS price_10y_ago,
+        y10.sales_count AS sales_10y_ago
         
     FROM current_metrics cm
     
@@ -124,6 +128,12 @@ price_windows AS (
         AND cm.property_type = y5.property_type
         AND cm.region_category = y5.region_category
         AND y5.year = cm.current_year - 4  -- Changed from -5 to -4 to match window
+
+    LEFT JOIN yearly_metrics y10
+        ON cm.suburb = y10.suburb
+        AND cm.property_type = y10.property_type
+        AND cm.region_category = y10.region_category
+        AND y10.year = cm.current_year - 9        
 ),
 
 -- Calculate total sales in each window for data quality
@@ -154,12 +164,16 @@ window_sales AS (
             THEN sales_count ELSE 0 END) AS total_sales_3y,
         SUM(CASE WHEN year >= max_year_for_group - 4 
             THEN sales_count ELSE 0 END) AS total_sales_5y,
+        SUM(CASE WHEN year >= max_year_for_group - 9 
+            THEN sales_count ELSE 0 END) AS total_sales_10y,
         
         -- Years with data
         COUNT(DISTINCT CASE WHEN year >= max_year_for_group - 2 
             THEN year END) AS years_in_3y_window,
         COUNT(DISTINCT CASE WHEN year >= max_year_for_group - 4 
             THEN year END) AS years_in_5y_window,
+        COUNT(DISTINCT CASE WHEN year >= max_year_for_group - 9 
+            THEN year END) AS years_in_10y_window,
         
         -- Overall data quality
         COUNT(DISTINCT year) AS total_years_with_data,
@@ -176,8 +190,10 @@ growth_metrics AS (
         ws.total_sales_1y,
         ws.total_sales_3y,
         ws.total_sales_5y,
+        ws.total_sales_10y,
         ws.years_in_3y_window,
         ws.years_in_5y_window,
+        ws.years_in_10y_window,
         ws.total_years_with_data,
         ws.lifetime_sales,
         
@@ -223,7 +239,25 @@ growth_metrics AS (
                  AND ws.years_in_5y_window >= 4
             THEN ROUND((POWER(SAFE_DIVIDE(pw.current_median_price, pw.price_5y_ago), 1.0/5) - 1) * 100, 2)
             ELSE NULL
-        END AS cagr_5y_pct
+        END AS cagr_5y_pct,
+
+        -- 10-year growth
+        CASE 
+            WHEN pw.price_10y_ago IS NOT NULL 
+                 AND ws.total_sales_10y >= 80
+                 AND ws.years_in_10y_window >= 8  -- At least 8 of 10 years
+            THEN ROUND(SAFE_DIVIDE(pw.current_median_price - pw.price_10y_ago, pw.price_10y_ago) * 100, 2)
+            ELSE NULL
+        END AS growth_10y_pct,
+
+        -- 10-year CAGR
+        CASE 
+            WHEN pw.price_10y_ago IS NOT NULL 
+                 AND ws.total_sales_10y >= 80
+                 AND ws.years_in_10y_window >= 8
+            THEN ROUND((POWER(SAFE_DIVIDE(pw.current_median_price, pw.price_10y_ago), 1.0/10) - 1) * 100, 2)
+            ELSE NULL
+        END AS cagr_10y_pct
         
     FROM price_windows pw
     LEFT JOIN window_sales ws
@@ -246,18 +280,22 @@ SELECT
     price_1y_ago,
     price_3y_ago,
     price_5y_ago,
+    price_10y_ago,
     
     -- Growth metrics
     growth_1y_pct,
     growth_3y_pct,
     growth_5y_pct,
+    growth_10y_pct,
     cagr_3y_pct,
     cagr_5y_pct,
+    cagr_10y_pct,
     
     -- Sales volume by window
     total_sales_1y,
     total_sales_3y,
     total_sales_5y,
+    total_sales_10y,
     
     -- Data quality metrics
     years_in_3y_window,
@@ -280,6 +318,11 @@ SELECT
         WHEN growth_5y_pct IS NOT NULL THEN TRUE 
         ELSE FALSE 
     END AS has_reliable_5y_growth,
+
+    CASE 
+        WHEN growth_10y_pct IS NOT NULL THEN TRUE 
+        ELSE FALSE 
+    END AS has_reliable_10y_growth,
     
     -- Overall reliability
     CASE 

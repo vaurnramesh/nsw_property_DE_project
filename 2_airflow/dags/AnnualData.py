@@ -19,8 +19,8 @@ GCP_CONN_ID = "nsw-property-de-project"
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 BIGQUERY_DATASET = "nsw_prop_data_all"
 
-START_YEAR = 2001
-END_YEAR = 2024
+START_YEAR = 2025
+END_YEAR = 2025
 
 def extract_inner_zips(zip_path: str, extract_to_dir: str) -> None:
     os.makedirs(extract_to_dir, exist_ok=True)
